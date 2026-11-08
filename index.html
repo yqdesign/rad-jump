@@ -153,6 +153,24 @@
     max-width: 70ch;
   }
   .note { margin-top: 4px; }
+
+  .board { margin-top: 32px; }
+  .board h2 { margin: 0 0 12px; font-size: 22px; font-weight: 800; letter-spacing: -0.01em; }
+  #saveForm { margin: 0 0 16px; padding: 16px; border: 1px solid var(--border); border-radius: 12px; background: var(--wall); }
+  #saveForm[hidden] { display: none; }
+  #saveForm label { display: block; font-weight: 700; margin-bottom: 8px; }
+  #saveForm .row { display: flex; gap: 10px; flex-wrap: wrap; }
+  input[type="text"] { flex: 1 1 200px; min-height: 48px; padding: 0 14px; border-radius: 12px; border: 1px solid var(--border); background: var(--page); color: var(--ink); font: inherit; }
+  input[type="text"]:focus-visible { outline: 3px solid var(--amber); outline-offset: 2px; }
+  #saveMsg { margin: 8px 0 0; min-height: 1.5em; font-size: 14px; color: var(--muted); }
+  #boardList { margin: 0; padding: 0; list-style: none; border: 1px solid var(--border); border-radius: 12px; overflow: hidden; background: var(--wall); }
+  #boardList:empty { display: none; }
+  #boardList li { display: flex; align-items: baseline; gap: 12px; padding: 12px 16px; border-top: 1px solid var(--border); font-variant-numeric: tabular-nums; }
+  #boardList li:first-child { border-top: 0; }
+  #boardList .rank { width: 1.5em; color: var(--muted); font-weight: 700; }
+  #boardList .who { flex: 1; font-weight: 700; overflow-wrap: anywhere; }
+  #boardList .pts { font-weight: 800; }
+  #boardList li.mine { background: var(--line); }
 </style>
 </head>
 <body>
@@ -173,6 +191,20 @@
 
   <p class="hint">Space or Up arrow to jump. Down arrow to duck, or to drop faster in mid-air. On a phone, tap the game or use the buttons.</p>
   <p class="note">Oxygen cylinders are MRI unsafe. Keep them out of Zone IV.</p>
+
+  <section class="board" aria-labelledby="boardTitle">
+    <h2 id="boardTitle">Leaderboard</h2>
+    <form id="saveForm" hidden>
+      <label for="playerName">Save your score of <span id="saveScore">0</span></label>
+      <div class="row">
+        <input type="text" id="playerName" maxlength="20" autocomplete="nickname" placeholder="Your name">
+        <button class="primary" id="saveBtn" type="submit">Save score</button>
+      </div>
+      <p id="saveMsg" role="status"></p>
+    </form>
+    <ol id="boardList"></ol>
+    <p class="note" id="boardMsg" role="status">Loading scores…</p>
+  </section>
 </main>
 
 <script>
@@ -384,12 +416,13 @@
     if (state === 'over') { if (performance.now() - overAt > 350) { start(); } return; }
     jump();
   }
-  function start() { reset(); state = 'running'; last = performance.now(); }
+  function start() { reset(); state = 'running'; last = performance.now(); if (window.onScannerRunStart) window.onScannerRunStart(); }
   function jump() {
     if (state === 'running' && py === 0) { vy = JUMP_V; beep(520, 0.12, 'square', 0.035, 880); }
   }
 
   window.addEventListener('keydown', e => {
+    if (e.target && e.target.closest && e.target.closest('#saveForm')) return;
     if (e.code === 'Space' || e.code === 'ArrowUp' || e.code === 'KeyW') { e.preventDefault(); if (!e.repeat) act(); }
     else if (e.code === 'ArrowDown' || e.code === 'KeyS') { e.preventDefault(); duck = true; }
   });
@@ -503,6 +536,7 @@
       hi = score;
       try { localStorage.setItem('scannerRunHi', String(hi)); } catch (e) { /* storage unavailable */ }
     }
+    if (window.onScannerRunOver) window.onScannerRunOver(score);
   }
 
   /* ---------- drawing ---------- */
@@ -638,6 +672,88 @@
     requestAnimationFrame(loop);
   }
   requestAnimationFrame(loop);
+})();
+</script>
+<script>
+(() => {
+  const API = 'https://cibihrmjgnbhvstfxkiy.supabase.co/rest/v1/rad_jump_scores';
+  const KEY = 'sb_publishable_UKPi5TBU9nAZIvJ3sVjmyA_f1NJMJ5X';
+  const HEADERS = { apikey: KEY, 'Content-Type': 'application/json' };
+  const form = document.getElementById('saveForm');
+  const nameEl = document.getElementById('playerName');
+  const scoreEl = document.getElementById('saveScore');
+  const saveMsg = document.getElementById('saveMsg');
+  const saveBtn = document.getElementById('saveBtn');
+  const list = document.getElementById('boardList');
+  const boardMsg = document.getElementById('boardMsg');
+  let pending = 0, saving = false, mine = null;
+
+  try { nameEl.value = localStorage.getItem('scannerRunName') || ''; } catch (e) { /* storage unavailable */ }
+
+  function el(tag, cls, text) {
+    const n = document.createElement(tag);
+    n.className = cls; n.textContent = text;
+    return n;
+  }
+
+  function render(rows) {
+    list.textContent = '';
+    if (!rows.length) { boardMsg.textContent = 'No scores yet. Be the first on the board.'; return; }
+    boardMsg.textContent = '';
+    let marked = false;
+    rows.forEach((r, i) => {
+      const li = document.createElement('li');
+      li.append(el('span', 'rank', String(i + 1)), el('span', 'who', r.player_name), el('span', 'pts', String(r.score)));
+      if (!marked && mine && mine.name === r.player_name && mine.score === r.score) { li.className = 'mine'; marked = true; }
+      list.append(li);
+    });
+  }
+
+  async function load() {
+    try {
+      const r = await fetch(API + '?select=player_name,score&order=score.desc,created_at.asc&limit=10', { headers: HEADERS });
+      if (!r.ok) throw new Error(r.status);
+      render(await r.json());
+    } catch (e) {
+      boardMsg.textContent = 'The leaderboard could not be loaded. Check your connection and refresh the page.';
+    }
+  }
+
+  window.onScannerRunOver = s => {
+    if (s < 1) return;
+    pending = s; saving = false;
+    scoreEl.textContent = String(s);
+    saveMsg.textContent = '';
+    saveBtn.disabled = false;
+    form.hidden = false;
+  };
+  window.onScannerRunStart = () => { pending = 0; form.hidden = true; };
+
+  form.addEventListener('submit', async e => {
+    e.preventDefault();
+    if (saving || !pending) return;
+    const name = nameEl.value.trim();
+    if (!name) { saveMsg.textContent = 'Enter a name to save your score.'; nameEl.focus(); return; }
+    saving = true; saveBtn.disabled = true; saveMsg.textContent = 'Saving…';
+    try {
+      const r = await fetch(API, {
+        method: 'POST',
+        headers: Object.assign({ Prefer: 'return=minimal' }, HEADERS),
+        body: JSON.stringify({ player_name: name, score: pending })
+      });
+      if (!r.ok) throw new Error(r.status);
+      try { localStorage.setItem('scannerRunName', name); } catch (err) { /* storage unavailable */ }
+      mine = { name: name, score: pending };
+      pending = 0;
+      saveMsg.textContent = 'Score saved.';
+      await load();
+    } catch (err) {
+      saving = false; saveBtn.disabled = false;
+      saveMsg.textContent = 'Could not save your score. Try again.';
+    }
+  });
+
+  load();
 })();
 </script>
 </body>
