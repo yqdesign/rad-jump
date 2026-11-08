@@ -1,0 +1,644 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Scanner Run</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --page: #E8EFF3;
+    --wall: #F6F9FB;
+    --floor: #1B3445;
+    --ink: #14303D;
+    --muted: #557082;
+    --equip: #D3E0E8;
+    --equip2: #9DB3C0;
+    --teal: #12A39A;
+    --teal-deep: #0C7F78;
+    --amber: #F4A63A;
+    --bore: #1E3A4C;
+    --cyl: #17303D;
+    --skin: #F0C29E;
+    --hair: #1C2B33;
+    --pants: #2F6E86;
+    --line: #E1EAF0;
+    --border: #CFDCE4;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --page: #0C171E;
+      --wall: #16262F;
+      --floor: #08121A;
+      --ink: #E4EEF3;
+      --muted: #8FA8B6;
+      --equip: #BFD0DA;
+      --equip2: #6D8795;
+      --teal: #1FC2B8;
+      --teal-deep: #129A92;
+      --amber: #F7B24F;
+      --bore: #07121A;
+      --cyl: #060F15;
+      --pants: #3B86A0;
+      --line: #1F3340;
+      --border: #26404F;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --page: #0C171E;
+    --wall: #16262F;
+    --floor: #08121A;
+    --ink: #E4EEF3;
+    --muted: #8FA8B6;
+    --equip: #BFD0DA;
+    --equip2: #6D8795;
+    --teal: #1FC2B8;
+    --teal-deep: #129A92;
+    --amber: #F7B24F;
+    --bore: #07121A;
+    --cyl: #060F15;
+    --pants: #3B86A0;
+    --line: #1F3340;
+    --border: #26404F;
+    color-scheme: dark;
+  }
+
+  :root {
+    box-sizing: border-box;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+  *, *::before, *::after { box-sizing: inherit; }
+
+  body {
+    margin: 0;
+    background: var(--page);
+    color: var(--ink);
+    font-family: "Manrope", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    line-height: 1.5;
+    -webkit-tap-highlight-color: transparent;
+  }
+  main {
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 28px 16px 40px;
+  }
+  h1 {
+    margin: 0 0 6px;
+    font-size: clamp(28px, 5vw, 40px);
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    line-height: 1.1;
+  }
+  .lede {
+    margin: 0 0 20px;
+    color: var(--muted);
+    max-width: 60ch;
+  }
+  .stage {
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    overflow: hidden;
+    background: var(--wall);
+  }
+  canvas {
+    display: block;
+    width: 100%;
+    height: auto;
+    aspect-ratio: 800 / 260;
+    touch-action: manipulation;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  .controls {
+    display: flex;
+    gap: 10px;
+    margin-top: 14px;
+    flex-wrap: wrap;
+  }
+  button {
+    font: inherit;
+    font-weight: 700;
+    min-height: 48px;
+    padding: 0 22px;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    background: var(--wall);
+    color: var(--ink);
+    cursor: pointer;
+    touch-action: manipulation;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  button.primary {
+    background: var(--teal-deep);
+    border-color: var(--teal-deep);
+    color: #fff;
+  }
+  button:active { transform: translateY(1px); }
+  button:focus-visible, canvas:focus-visible {
+    outline: 3px solid var(--amber);
+    outline-offset: 2px;
+  }
+  .spacer { flex: 1; }
+  .hint, .note {
+    margin: 14px 0 0;
+    color: var(--muted);
+    font-size: 14px;
+    max-width: 70ch;
+  }
+  .note { margin-top: 4px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Scanner Run</h1>
+  <p class="lede">Your list is full and the scan room is a mess. Keep the radiographer moving past the equipment, and dodge anything that should never be near a magnet.</p>
+
+  <div class="stage">
+    <canvas id="game" tabindex="0" aria-label="Scanner Run game. Press Space to jump and Down arrow to duck."></canvas>
+  </div>
+
+  <div class="controls">
+    <button class="primary" id="btnJump" type="button">Jump</button>
+    <button id="btnDuck" type="button">Duck</button>
+    <span class="spacer"></span>
+    <button id="btnSound" type="button" aria-pressed="true">Sound on</button>
+  </div>
+
+  <p class="hint">Space or Up arrow to jump. Down arrow to duck, or to drop faster in mid-air. On a phone, tap the game or use the buttons.</p>
+  <p class="note">Oxygen cylinders are MRI unsafe. Keep them out of Zone IV.</p>
+</main>
+
+<script>
+(() => {
+  const W = 800, H = 260, GY = 206, PX = 64;
+  const cv = document.getElementById('game');
+  const ctx = cv.getContext('2d');
+
+  /* ---------- canvas sizing ---------- */
+  function fit() {
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    cv.width = Math.round(W * dpr);
+    cv.height = Math.round(H * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+  fit();
+  window.addEventListener('resize', fit);
+
+  /* ---------- theme colours (read from CSS variables) ---------- */
+  let C = {};
+  function readTheme() {
+    const s = getComputedStyle(document.documentElement);
+    const g = n => s.getPropertyValue(n).trim();
+    C = {
+      wall: g('--wall'), floor: g('--floor'), ink: g('--ink'), muted: g('--muted'),
+      equip: g('--equip'), equip2: g('--equip2'), teal: g('--teal'), tealDeep: g('--teal-deep'),
+      amber: g('--amber'), bore: g('--bore'), cyl: g('--cyl'), skin: g('--skin'),
+      hair: g('--hair'), pants: g('--pants'), line: g('--line')
+    };
+  }
+  readTheme();
+  if (window.matchMedia) {
+    const mq = window.matchMedia('(prefers-color-scheme: dark)');
+    if (mq.addEventListener) mq.addEventListener('change', readTheme);
+  }
+  new MutationObserver(readTheme).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+
+  /* ---------- helpers ---------- */
+  function rr(x, y, w, h, r, fill, stroke) {
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(x, y, w, h, r); else ctx.rect(x, y, w, h);
+    if (fill) { ctx.fillStyle = fill; ctx.fill(); }
+    if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = 1.5; ctx.stroke(); }
+  }
+  function circ(x, y, r, fill) {
+    ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fillStyle = fill; ctx.fill();
+  }
+  const pad = n => String(n).padStart(5, '0');
+  const rand = (a, b) => a + Math.random() * (b - a);
+
+  /* ---------- audio ---------- */
+  let actx = null, muted = false;
+  function beep(freq, dur, type, vol, slideTo) {
+    if (muted) return;
+    try {
+      actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+      const t = actx.currentTime, o = actx.createOscillator(), g = actx.createGain();
+      o.type = type || 'square';
+      o.frequency.setValueAtTime(freq, t);
+      if (slideTo) o.frequency.exponentialRampToValueAtTime(slideTo, t + dur);
+      g.gain.setValueAtTime(vol || 0.04, t);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      o.connect(g); g.connect(actx.destination);
+      o.start(t); o.stop(t + dur);
+    } catch (e) { /* audio unavailable */ }
+  }
+
+  /* ---------- equipment ---------- */
+  const T = {
+    trolley: {
+      w: 80, boxes: [[0, 4, 80, 34]],
+      draw(o) {
+        const x = o.x;
+        circ(x + 14, GY - 5, 5, C.cyl); circ(x + 66, GY - 5, 5, C.cyl);
+        rr(x + 6, GY - 16, 68, 4, 2, C.equip2);
+        rr(x, GY - 28, 80, 12, 5, C.equip);
+        rr(x + 24, GY - 34, 52, 18, 9, '#FFFFFF', C.equip2);
+        rr(x + 30, GY - 28, 40, 4, 2, C.teal);
+        rr(x + 4, GY - 33, 18, 6, 3, '#FFFFFF', C.equip2);
+        rr(x, GY - 40, 4, 26, 2, C.equip2);
+      }
+    },
+    cyl: {
+      w: 15, boxes: [[0, 0, 15, 40]],
+      draw(o) {
+        for (let i = 0; i < o.n; i++) {
+          const cx = o.x + i * 15;
+          rr(cx + 4, GY - 44, 5, 7, 1, C.equip2);
+          rr(cx, GY - 38, 13, 38, 5, C.cyl);
+          rr(cx, GY - 38, 13, 13, 5, '#FFFFFF');
+        }
+      }
+    },
+    ivstand: {
+      w: 24, boxes: [[0, 0, 24, 62]],
+      draw(o) {
+        const x = o.x;
+        rr(x + 11, GY - 62, 3, 58, 1.5, C.equip2);
+        rr(x + 3, GY - 62, 19, 3, 1.5, C.equip2);
+        rr(x + 1, GY - 58, 11, 20, 4, '#9AD7E6');
+        rr(x + 1, GY - 47, 11, 9, 4, '#4FB4D4');
+        rr(x + 2, GY - 6, 20, 3, 1.5, C.equip2);
+        circ(x + 4, GY - 2.5, 2.5, C.cyl); circ(x + 20, GY - 2.5, 2.5, C.cyl);
+      }
+    },
+    apron: {
+      w: 36, boxes: [[2, 0, 32, 66]],
+      draw(o) {
+        const x = o.x;
+        rr(x + 4, GY - 5, 28, 5, 2, C.equip2);
+        rr(x + 16, GY - 64, 4, 60, 2, C.equip2);
+        rr(x + 3, GY - 66, 30, 4, 2, C.equip2);
+        rr(x + 5, GY - 60, 26, 42, 7, '#6B8190');
+        circ(x + 18, GY - 60, 6, C.wall);
+        circ(x + 18, GY - 38, 6, C.amber);
+        circ(x + 18, GY - 38, 2, C.cyl);
+      }
+    },
+    carm: {
+      w: 46, boxes: [[0, 0, 46, 16], [2, 16, 8, 32], [4, 24, 30, 42]],
+      draw(o) {
+        const x = o.x, cx = x + 26, cy = GY - 44, r = 20;
+        rr(x, GY - 16, 46, 12, 4, C.equip);
+        circ(x + 10, GY - 4, 4, C.cyl); circ(x + 36, GY - 4, 4, C.cyl);
+        rr(x + 2, GY - 48, 8, 34, 3, C.equip2);
+        ctx.save();
+        ctx.lineCap = 'round'; ctx.lineWidth = 7; ctx.strokeStyle = C.equip;
+        ctx.beginPath(); ctx.arc(cx, cy, r, Math.PI * 0.55, Math.PI * 1.45); ctx.stroke();
+        ctx.restore();
+        const tx = cx + r * Math.cos(Math.PI * 1.45), ty = cy + r * Math.sin(Math.PI * 1.45);
+        const bx = cx + r * Math.cos(Math.PI * 0.55), by = cy + r * Math.sin(Math.PI * 0.55);
+        rr(tx - 6, ty - 5, 18, 8, 3, C.teal);
+        rr(bx - 6, by - 3, 18, 8, 3, C.cyl);
+      }
+    },
+    ct: {
+      w: 100, boxes: [[0, 0, 56, 56], [56, 15, 44, 9]],
+      draw(o) {
+        const x = o.x;
+        rr(x, GY - 56, 56, 56, 14, C.equip);
+        rr(x + 8, GY - 49, 40, 4, 2, C.amber);
+        circ(x + 28, GY - 27, 19, C.equip2);
+        circ(x + 28, GY - 27, 16, C.bore);
+        rr(x + 78, GY - 16, 12, 16, 3, C.equip2);
+        rr(x + 40, GY - 22, 60, 7, 3, '#FFFFFF', C.equip2);
+      }
+    },
+    mri: {
+      w: 124, boxes: [[0, 0, 70, 70], [70, 17, 54, 10]],
+      draw(o) {
+        const x = o.x;
+        rr(x, GY - 70, 70, 70, 12, C.equip);
+        rr(x + 9, GY - 62, 52, 4, 2, C.teal);
+        circ(x + 35, GY - 33, 25, C.equip2);
+        circ(x + 35, GY - 33, 21, C.bore);
+        circ(x + 35, GY - 33, 12, C.cyl);
+        rr(x + 96, GY - 19, 14, 19, 3, C.equip2);
+        rr(x + 46, GY - 27, 78, 8, 3, '#FFFFFF', C.equip2);
+      }
+    },
+    projectile: {
+      w: 44, boxes: [[2, 0, 40, 15]],
+      draw(o) {
+        const x = o.x, y = GY - o.bottom - 15;
+        rr(x + 46, y + 3, 16, 2, 1, C.equip2);
+        rr(x + 52, y + 7, 22, 2, 1, C.equip2);
+        rr(x + 46, y + 11, 12, 2, 1, C.equip2);
+        rr(x + 4, y, 38, 15, 7, C.cyl);
+        rr(x + 4, y, 14, 15, 7, '#FFFFFF');
+        rr(x, y + 5, 6, 5, 1, C.equip2);
+      }
+    }
+  };
+  const POOL = ['trolley', 'cyl', 'ivstand', 'apron', 'carm', 'ct', 'mri'];
+  const FLY_LEVELS = [10, 36, 84];
+
+  /* ---------- state ---------- */
+  let state = 'ready';
+  let speed, dist, score, hi = 0, frame, py, vy, duck, obs, decor, toNext, lastMilestone, flashUntil, overAt;
+  try { hi = parseInt(localStorage.getItem('scannerRunHi') || '0', 10) || 0; } catch (e) { hi = 0; }
+
+  const START_SPEED = 6, MAX_SPEED = 13.5, ACCEL = 0.0016;
+  const GRAV = 0.65, JUMP_V = 12.6;
+
+  const SIGNS = [
+    { t: 'MRI Zone IV', c: 'amber' }, { t: 'Scan in progress', c: 'amber' },
+    { t: 'No metal beyond this point', c: 'equip' }, { t: 'CT', c: 'equip' },
+    { t: 'X-ray', c: 'equip' }, { t: 'Quiet please', c: 'equip' }
+  ];
+
+  function reset() {
+    speed = START_SPEED; dist = 0; score = 0; frame = 0;
+    py = 0; vy = 0; duck = duck || false;
+    obs = []; toNext = 260; lastMilestone = 0; flashUntil = 0;
+    decor = [];
+    ctx.font = '700 11px Manrope, system-ui, sans-serif';
+    let sx = 120;
+    for (let i = 0; i < 4; i++) {
+      const s = SIGNS[i % SIGNS.length];
+      decor.push({ x: sx, t: s.t, c: s.c, w: ctx.measureText(s.t).width + 24 });
+      sx += rand(240, 360);
+    }
+  }
+  reset();
+
+  /* ---------- input ---------- */
+  function act() {
+    if (state === 'ready') { start(); jump(); return; }
+    if (state === 'over') { if (performance.now() - overAt > 350) { start(); } return; }
+    jump();
+  }
+  function start() { reset(); state = 'running'; last = performance.now(); }
+  function jump() {
+    if (state === 'running' && py === 0) { vy = JUMP_V; beep(520, 0.12, 'square', 0.035, 880); }
+  }
+
+  window.addEventListener('keydown', e => {
+    if (e.code === 'Space' || e.code === 'ArrowUp' || e.code === 'KeyW') { e.preventDefault(); if (!e.repeat) act(); }
+    else if (e.code === 'ArrowDown' || e.code === 'KeyS') { e.preventDefault(); duck = true; }
+  });
+  window.addEventListener('keyup', e => {
+    if (e.code === 'ArrowDown' || e.code === 'KeyS') duck = false;
+  });
+  cv.addEventListener('pointerdown', e => { e.preventDefault(); act(); });
+
+  const btnJump = document.getElementById('btnJump');
+  const btnDuck = document.getElementById('btnDuck');
+  const btnSound = document.getElementById('btnSound');
+  btnJump.addEventListener('pointerdown', e => { e.preventDefault(); act(); });
+  btnDuck.addEventListener('pointerdown', e => { e.preventDefault(); duck = true; });
+  ['pointerup', 'pointerleave', 'pointercancel'].forEach(ev =>
+    btnDuck.addEventListener(ev, () => { duck = false; }));
+  btnSound.addEventListener('pointerdown', e => {
+    e.preventDefault();
+    muted = !muted;
+    btnSound.textContent = muted ? 'Sound off' : 'Sound on';
+    btnSound.setAttribute('aria-pressed', String(!muted));
+  });
+
+  document.addEventListener('visibilitychange', () => { last = performance.now(); });
+
+  /* ---------- spawning ---------- */
+  function spawn() {
+    const unlocked = Math.min(POOL.length, 3 + Math.floor(score / 80));
+    const flying = score >= 250 && Math.random() < 0.25;
+    let o;
+    if (flying) {
+      const T0 = T.projectile;
+      o = { t: 'projectile', x: W + 20, w: T0.w + 30, boxes: T0.boxes,
+            bottom: FLY_LEVELS[Math.floor(Math.random() * FLY_LEVELS.length)], drift: 0.6 };
+    } else {
+      const k = POOL[Math.floor(Math.random() * unlocked)];
+      const T0 = T[k];
+      o = { t: k, x: W + 20, w: T0.w, boxes: T0.boxes, bottom: 0 };
+      if (k === 'cyl') {
+        o.n = 1 + Math.floor(Math.random() * 3);
+        o.w = o.n * 15;
+        o.boxes = [[0, 0, o.w, 40]];
+      }
+    }
+    obs.push(o);
+    toNext = o.w + speed * rand(24, 42);
+  }
+
+  /* ---------- update ---------- */
+  function update(dt) {
+    speed = Math.min(MAX_SPEED, speed + ACCEL * dt);
+    dist += speed * dt;
+    frame += dt;
+    score = Math.floor(dist * 0.025);
+
+    if (py > 0 || vy > 0) {
+      vy -= (duck && py > 0 ? GRAV * 3 : GRAV) * dt;
+      py += vy * dt;
+      if (py <= 0) { py = 0; vy = 0; }
+    }
+
+    toNext -= speed * dt;
+    if (toNext <= 0) spawn();
+
+    for (const o of obs) o.x -= (speed + (o.drift || 0)) * dt;
+    obs = obs.filter(o => o.x + o.w + 80 > 0);
+
+    for (const d of decor) {
+      d.x -= speed * 0.3 * dt;
+      if (d.x + d.w < -20) {
+        const s = SIGNS[Math.floor(Math.random() * SIGNS.length)];
+        ctx.font = '700 11px Manrope, system-ui, sans-serif';
+        d.t = s.t; d.c = s.c; d.w = ctx.measureText(s.t).width + 24;
+        const far = Math.max(...decor.map(q => q.x + q.w));
+        d.x = Math.max(W + 20, far + rand(220, 340));
+      }
+    }
+
+    const m = Math.floor(score / 100);
+    if (m > lastMilestone) {
+      lastMilestone = m;
+      flashUntil = performance.now() + 700;
+      beep(880, 0.09, 'square', 0.035); setTimeout(() => beep(1175, 0.12, 'square', 0.035), 100);
+    }
+
+    if (collides()) gameOver();
+  }
+
+  function collides() {
+    const ducking = duck && py === 0;
+    const px = ducking ? PX + 4 : PX + 11;
+    const pw = ducking ? 46 : 24;
+    const ph = ducking ? 32 : 52;
+    const pTop = GY - py - ph + 3, pBot = GY - py - 2;
+    const pL = px + 2, pR = px + pw - 2;
+    for (const o of obs) {
+      for (const b of o.boxes) {
+        const bL = o.x + b[0] + 3, bR = o.x + b[0] + b[2] - 3;
+        const bBot = GY - (o.bottom + b[1]) - 2;
+        const bTop = GY - (o.bottom + b[1] + b[3]) + 3;
+        if (pR > bL && pL < bR && pBot > bTop && pTop < bBot) return true;
+      }
+    }
+    return false;
+  }
+
+  function gameOver() {
+    state = 'over';
+    overAt = performance.now();
+    beep(380, 0.35, 'sawtooth', 0.045, 90);
+    if (score > hi) {
+      hi = score;
+      try { localStorage.setItem('scannerRunHi', String(hi)); } catch (e) { /* storage unavailable */ }
+    }
+  }
+
+  /* ---------- drawing ---------- */
+  function drawBackground() {
+    ctx.fillStyle = C.wall; ctx.fillRect(0, 0, W, H);
+
+    // wall seams and ceiling lights scroll together
+    const off = (dist * 0.5) % 220;
+    ctx.fillStyle = C.line;
+    for (let x = -off; x < W; x += 220) {
+      ctx.fillRect(x + 110, 0, 2, GY);
+      rr(x + 30, 10, 100, 6, 3, C.equip);
+    }
+
+    // wall signs
+    for (const d of decor) {
+      const fill = d.c === 'amber' ? C.amber : C.equip;
+      rr(d.x, 40, d.w, 24, 6, fill);
+      ctx.fillStyle = d.c === 'amber' ? '#14303D' : C.muted;
+      ctx.font = '700 11px Manrope, system-ui, sans-serif';
+      ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+      ctx.fillText(d.t, d.x + 12, 52.5);
+    }
+
+    // floor
+    ctx.fillStyle = C.floor; ctx.fillRect(0, GY, W, H - GY);
+    ctx.fillStyle = C.teal; ctx.fillRect(0, GY, W, 3);
+    const fo = dist % 90;
+    ctx.fillStyle = C.equip2; ctx.globalAlpha = 0.35;
+    for (let x = -fo; x < W; x += 90) rr(x, GY + 16, 28, 3, 1.5, C.equip2);
+    for (let x = -fo * 1.4 + 40; x < W; x += 140) rr(x, GY + 30, 12, 3, 1.5, C.equip2);
+    ctx.globalAlpha = 1;
+  }
+
+  function drawPlayer() {
+    const air = py > 0;
+    const duckOn = duck && !air && state === 'running';
+    const running = state === 'running' && !air && !duckOn;
+    const ph = Math.floor(frame / 5) % 2;
+    const y0 = GY - py;
+
+    // shadow
+    ctx.globalAlpha = 0.18 * (1 - Math.min(py / 160, 0.8));
+    ctx.beginPath(); ctx.ellipse(PX + 23, GY + 2, 17, 3.5, 0, 0, Math.PI * 2); ctx.fillStyle = '#000'; ctx.fill();
+    ctx.globalAlpha = 1;
+
+    ctx.save();
+    ctx.translate(PX, y0);
+    if (duckOn) ctx.scale(1.2, 0.62);
+
+    let l1 = 0, l2 = 0;
+    if (running) { l1 = ph ? 0 : 7; l2 = ph ? 7 : 0; }
+    else if (air) { l1 = 5; l2 = 3; }
+
+    // legs and shoes
+    rr(13, -16 - l1, 8, 16, 3, C.pants);
+    rr(11, -4 - l1, 12, 4, 2, '#FFFFFF');
+    rr(25, -16 - l2, 8, 16, 3, C.pants);
+    rr(23, -4 - l2, 12, 4, 2, '#FFFFFF');
+
+    // torso (scrubs) and ID badge
+    rr(9, -40, 28, 26, 7, C.teal);
+    rr(18, -40, 10, 6, 3, C.tealDeep);
+    rr(13, -33, 8, 10, 2, '#FFFFFF');
+    rr(15, -31, 4, 2, 1, C.equip2);
+
+    // arm
+    const armA = air ? -2.5 : running ? (ph ? 0.8 : -0.8) : 0.2;
+    ctx.save();
+    ctx.translate(25, -36); ctx.rotate(armA);
+    rr(-3, 0, 7, 16, 3, C.tealDeep);
+    rr(-3, 13, 7, 6, 3, C.skin);
+    ctx.restore();
+
+    // head
+    circ(24, -49, 9, C.skin);
+    ctx.beginPath(); ctx.arc(24, -49, 9.6, Math.PI * 0.92, Math.PI * 1.98); ctx.closePath();
+    ctx.fillStyle = C.hair; ctx.fill();
+    circ(28.5, -48, 1.5, '#14303D');
+    ctx.restore();
+  }
+
+  function drawObstacles() {
+    for (const o of obs) T[o.t].draw(o);
+  }
+
+  function drawHud() {
+    ctx.font = '700 15px Manrope, system-ui, sans-serif';
+    ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'right';
+    const flashing = performance.now() < flashUntil && Math.floor(performance.now() / 110) % 2 === 0;
+    ctx.fillStyle = C.ink;
+    if (!flashing) ctx.fillText(pad(score), W - 20, 28);
+    ctx.fillStyle = C.muted;
+    ctx.fillText('HI ' + pad(hi), W - 84, 28);
+  }
+
+  function drawOverlay() {
+    ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+    if (state === 'ready') {
+      ctx.fillStyle = C.ink;
+      ctx.font = '800 22px Manrope, system-ui, sans-serif';
+      ctx.fillText('Ready for the next patient?', W / 2, 108);
+      ctx.fillStyle = C.muted;
+      ctx.font = '600 14px Manrope, system-ui, sans-serif';
+      ctx.fillText('Press Space or tap to start', W / 2, 134);
+    } else if (state === 'over') {
+      ctx.globalAlpha = 0.82; ctx.fillStyle = C.wall;
+      rr(W / 2 - 190, 78, 380, 78, 14, C.wall); ctx.globalAlpha = 1;
+      ctx.fillStyle = C.ink;
+      ctx.font = '800 24px Manrope, system-ui, sans-serif';
+      ctx.fillText('Scan interrupted', W / 2, 112);
+      ctx.fillStyle = C.muted;
+      ctx.font = '600 14px Manrope, system-ui, sans-serif';
+      ctx.fillText('Press Space or tap to scan again', W / 2, 138);
+    }
+  }
+
+  function render() {
+    drawBackground();
+    drawObstacles();
+    drawPlayer();
+    drawHud();
+    drawOverlay();
+  }
+
+  /* ---------- loop ---------- */
+  let last = performance.now();
+  function loop(now) {
+    const dt = Math.min((now - last) / 16.667, 3);
+    last = now;
+    if (state === 'running') update(dt);
+    render();
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
