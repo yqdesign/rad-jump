@@ -3,6 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#E8EFF3" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0C171E" media="(prefers-color-scheme: dark)">
 <title>Scanner Run</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -72,7 +74,7 @@
     padding-top: env(safe-area-inset-top, 0px);
     padding-bottom: env(safe-area-inset-bottom, 0px);
   }
-  html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+  html { scroll-padding-top: env(safe-area-inset-top, 0px); -webkit-text-size-adjust: 100%; }
   *, *::before, *::after { box-sizing: inherit; }
 
   body {
@@ -86,7 +88,7 @@
   main {
     max-width: 860px;
     margin: 0 auto;
-    padding: 28px 16px 40px;
+    padding: 28px max(16px, env(safe-area-inset-right, 0px)) 40px max(16px, env(safe-area-inset-left, 0px));
   }
   h1 {
     margin: 0 0 6px;
@@ -111,9 +113,10 @@
     width: 100%;
     height: auto;
     aspect-ratio: 800 / 260;
-    touch-action: manipulation;
+    touch-action: none;
     user-select: none;
     -webkit-user-select: none;
+    -webkit-touch-callout: none;
   }
   .controls {
     display: flex;
@@ -134,6 +137,7 @@
     touch-action: manipulation;
     user-select: none;
     -webkit-user-select: none;
+    -webkit-touch-callout: none;
   }
   button.primary {
     background: var(--teal-deep);
@@ -171,6 +175,21 @@
   #boardList .who { flex: 1; font-weight: 700; overflow-wrap: anywhere; }
   #boardList .pts { font-weight: 800; }
   #boardList li.mine { background: var(--line); }
+
+  .touch { display: none; }
+  @media (hover: none) and (pointer: coarse) {
+    .kb { display: none; }
+    .touch { display: inline; }
+  }
+  @media (max-width: 640px) {
+    main { padding-top: 16px; }
+    .lede { margin-bottom: 14px; }
+    .controls { gap: 8px; }
+    .controls button { flex: 1 1 0; min-height: 64px; font-size: 18px; }
+    .controls .spacer { display: none; }
+    #btnSound { flex: 0 0 100%; min-height: 44px; font-size: 14px; }
+    #saveForm .row button { flex: 1 1 100%; }
+  }
 </style>
 </head>
 <body>
@@ -189,9 +208,6 @@
     <button id="btnSound" type="button" aria-pressed="true">Sound on</button>
   </div>
 
-  <p class="hint">Space or Up arrow to jump. Down arrow to duck, or to drop faster in mid-air. On a phone, tap the game or use the buttons.</p>
-  <p class="note">Oxygen cylinders are MRI unsafe. Keep them out of Zone IV.</p>
-
   <section class="board" aria-labelledby="boardTitle">
     <h2 id="boardTitle">Leaderboard</h2>
     <form id="saveForm" hidden>
@@ -205,17 +221,30 @@
     <ol id="boardList"></ol>
     <p class="note" id="boardMsg" role="status">Loading scores…</p>
   </section>
+
+  <p class="hint"><span class="kb">Space or Up arrow to jump. Down arrow to duck, or to drop faster in mid-air.</span><span class="touch">Tap the game or Jump to leap. Hold Duck to crouch under flying cylinders, or to drop faster in mid-air.</span></p>
+  <p class="note">Oxygen cylinders are MRI unsafe. Keep them out of Zone IV.</p>
+
 </main>
 
 <script>
 (() => {
-  const W = 800, H = 260, GY = 206, PX = 64;
+  const H = 260, GY = 206, PX = 64;
+  const narrowMq = window.matchMedia ? window.matchMedia('(max-width: 640px)') : { matches: false };
+  const touchMq = window.matchMedia ? window.matchMedia('(pointer: coarse)') : { matches: false };
+  const widthFor = () => (narrowMq.matches ? 560 : 800);
+  let W = widthFor();
   const cv = document.getElementById('game');
   const ctx = cv.getContext('2d');
 
   /* ---------- canvas sizing ---------- */
+  let fitW = 0, fitDpr = 0;
   function fit() {
+    W = widthFor();
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    if (W === fitW && dpr === fitDpr) return;
+    fitW = W; fitDpr = dpr;
+    cv.style.aspectRatio = W + ' / ' + H;
     cv.width = Math.round(W * dpr);
     cv.height = Math.round(H * dpr);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -447,6 +476,15 @@
 
   document.addEventListener('visibilitychange', () => { last = performance.now(); });
 
+  function unlockAudio() {
+    try {
+      actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+      if (actx.state === 'suspended') actx.resume();
+    } catch (e) { /* audio unavailable */ }
+  }
+  window.addEventListener('pointerup', unlockAudio, { once: true });
+  window.addEventListener('keydown', unlockAudio, { once: true });
+
   /* ---------- spawning ---------- */
   function spawn() {
     const unlocked = Math.min(POOL.length, 3 + Math.floor(score / 80));
@@ -532,6 +570,7 @@
     state = 'over';
     overAt = performance.now();
     beep(380, 0.35, 'sawtooth', 0.045, 90);
+    if (!muted && navigator.vibrate) navigator.vibrate(60);
     if (score > hi) {
       hi = score;
       try { localStorage.setItem('scannerRunHi', String(hi)); } catch (e) { /* storage unavailable */ }
@@ -641,7 +680,7 @@
       ctx.fillText('Ready for the next patient?', W / 2, 108);
       ctx.fillStyle = C.muted;
       ctx.font = '600 14px Manrope, system-ui, sans-serif';
-      ctx.fillText('Press Space or tap to start', W / 2, 134);
+      ctx.fillText(touchMq.matches ? 'Tap to start' : 'Press Space or tap to start', W / 2, 134);
     } else if (state === 'over') {
       ctx.globalAlpha = 0.82; ctx.fillStyle = C.wall;
       rr(W / 2 - 190, 78, 380, 78, 14, C.wall); ctx.globalAlpha = 1;
@@ -650,7 +689,7 @@
       ctx.fillText('Scan interrupted', W / 2, 112);
       ctx.fillStyle = C.muted;
       ctx.font = '600 14px Manrope, system-ui, sans-serif';
-      ctx.fillText('Press Space or tap to scan again', W / 2, 138);
+      ctx.fillText(touchMq.matches ? 'Tap to scan again' : 'Press Space or tap to scan again', W / 2, 138);
     }
   }
 
